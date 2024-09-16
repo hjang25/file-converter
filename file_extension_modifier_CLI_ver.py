@@ -2,7 +2,7 @@
 
 import img2pdf
 import os
-import PyPDF2
+from PyPDF2 import PdfReader
 from PIL import Image
 import sys
 
@@ -21,10 +21,9 @@ def type_converter(file_path, old, new):
 			if element.is_file():
 				# if pdf, must do the conversion differently
 				if new == '.pdf':
-					files_counter += convert_to_pdf(element)
+					files_counter += convert_to_pdf(element, old, new)
 				elif old == '.pdf':
-					# TODO: call convert_to_img
-					return # TODO: delete
+					files_counter += convert_to_img(element, new)
 				else:
 					files_counter += modify_extension(element, old, new)
 
@@ -32,19 +31,50 @@ def type_converter(file_path, old, new):
 	return files_counter
 
 
-def convert_to_pdf(img):
-	# TODO: handle case when new == .pdf
-	with Image.open(img) as image:
-		success_modif = 0
-		# convert image to pdf
-		pdf = img2pdf.convert(image.filename)
-		with open(f"/Users/hajinjang/Downloads/Airdrop/{image.filename}.pdf", "wb") as file:
-			if (file.write(pdf) > 0):
-				success_modif = 1
-		return success_modif
+def convert_to_pdf(element, old, new):
+    # NOTE: conversion will be unsuccessful for broken files
+    filename = element.path
+    root, ext = os.path.splitext(filename)
 
-def convert_to_img():
-	# TODO: handle case when old == .pdf
+    if ext.lower() != old:
+        return 0
+
+    try:
+        # Open the image file
+        image = Image.open(filename)
+        pdf_bytes = img2pdf.convert(image.filename)
+
+        # Save as PDF
+        pdf_filename = root + new
+        with open(pdf_filename, "wb") as f:
+            f.write(pdf_bytes)
+        print(f"Converted {filename} to {pdf_filename}")
+        return 1
+    except Exception as e:
+        print(f"Error converting {filename} to PDF: {e}")
+        return 0
+
+def convert_to_img(element, new):
+    filename = element.path
+    root, ext = os.path.splitext(filename)
+
+    # must skip if given element is not a pdf
+    if ext.lower() != ".pdf":
+        return 0
+
+    try:
+        reader = PdfReader(filename)
+    except Exception as e:
+        print(f"Error reading PDF {filename}: {e}")
+        return 0
+
+    page = reader.pages[0]
+
+    for image_file_object in page.images:
+        with open(root + new, "wb") as fp:
+            fp.write(image_file_object.data)
+    
+    return 1
 
 def modify_extension(element, old, new):
 	success_modif = 0
@@ -72,3 +102,4 @@ if __name__ == "__main__":
 		type_converter(path, '.'+sys.argv[1], '.'+sys.argv[2])
 	else:
 		print('Please provide the old and new file extensions, separated by a space')
+		
